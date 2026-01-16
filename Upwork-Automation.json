@@ -1,0 +1,479 @@
+{
+  "name": "Upwork Automation - Enhanced",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-16, -208],
+      "id": "9c28cc0d-2d1d-493d-89b2-639d35a992d9",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/neatrat~upwork-job-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.APIFY_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"n8n OR automation OR AI workflow OR Twilio OR Retell OR conversational automation\",\n  \"maxJobAge\": {\n    \"value\": 6,\n    \"unit\": \"hours\"\n  },\n  \"maxItems\": 50\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [224, -208],
+      "id": "490cd73c-3863-4d92-8502-4b55055f9db3",
+      "name": "HTTP Request - Fetch Jobs",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "apify-credentials",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pre-filter jobs by budget and experience level\nconst items = $input.all();\nconst filteredItems = [];\nconst minBudget = 500; // Configurable minimum budget\nconst allowedExperienceLevels = ['Intermediate', 'Expert']; // Configurable\n\nfor (const item of items) {\n  const job = item.json;\n  \n  // Extract budget (could be in different fields)\n  const budget = job.budget || job.fixedPrice || job.hourlyRate || 0;\n  const experienceLevel = job.experienceLevel || '';\n  \n  // Apply filters\n  const meetsBudget = !budget || budget >= minBudget; // Include if no budget specified\n  const meetsExperience = !experienceLevel || allowedExperienceLevels.includes(experienceLevel) || allowedExperienceLevels.length === 0;\n  \n  if (meetsBudget && meetsExperience) {\n    filteredItems.push(item);\n  }\n}\n\nreturn filteredItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [424, -208],
+      "id": "pre-filter-jobs",
+      "name": "Pre-filter Jobs"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dbd4dbbe-4f44-4db6-b155-534e848b13a9",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "1e6372fe-feb6-4f6b-bd21-5d78bf26b4b7",
+              "name": "description",
+              "value": "={{ $json.description }}",
+              "type": "string"
+            },
+            {
+              "id": "f487bf4c-eece-435e-8ac4-39028cb262fe",
+              "name": "url",
+              "value": "={{ $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "7d870236-fdbb-4382-bafd-9da2cfcd07aa",
+              "name": "relativeDate",
+              "value": "={{ $json.relativeDate }}",
+              "type": "string"
+            },
+            {
+              "id": "53be8665-16bb-42a0-8529-0f3ede70137e",
+              "name": "jobType",
+              "value": "={{ $json.jobType }}",
+              "type": "string"
+            },
+            {
+              "id": "f7d6d248-2193-4684-8406-5b112a145abf",
+              "name": "experienceLevel",
+              "value": "={{ $json.experienceLevel }}",
+              "type": "string"
+            },
+            {
+              "id": "0d08a144-9edf-4745-8489-4350976cb5f0",
+              "name": "Posted",
+              "value": "={{ $json.relativeDate }}",
+              "type": "string"
+            },
+            {
+              "id": "budget-field",
+              "name": "budget",
+              "value": "={{ $json.budget || $json.fixedPrice || $json.hourlyRate || 0 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [624, -208],
+      "id": "23831597-5209-4cc1-9cbb-1c77157b3cac",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skill-weights",
+              "name": "skillWeights",
+              "value": "={\n  \"n8n\": 3,\n  \"AI workflow\": 3,\n  \"automation\": 2,\n  \"Twilio\": 2,\n  \"Retell\": 2,\n  \"conversational automation\": 3,\n  \"workflow automation\": 2,\n  \"no-code\": 1.5,\n  \"API integration\": 1.5\n}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [824, -208],
+      "id": "set-skill-weights",
+      "name": "Set Skill Weights"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "chatgpt-4o-latest"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [688, 16],
+      "id": "f4cfcbbf-debc-486a-a765-e96a4f0a4c6f",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"score\": \"X/10\",\n  \"priority\": \"High | Medium | Low\",\n  \"reason\": \"One short paragraph explaining why\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [848, 32],
+      "id": "14a8b710-595f-4468-9ebe-7e42b113bd9d",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.title }}\n{{ $json.description }}\n{{ $json.url }}\n{{ $json.relativeDate }}\n{{ $json.jobType }}\n{{ $json.experienceLevel }}\n{{ $json.budget }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert Upwork Job Scoring Agent trained to evaluate jobs specifically for Morgan (an automation builder specializing in n8n, AI automations, workflow systems, voice agents, and Twilio/Retell).\n\nYour task is to analyze the job below and score how good it is for Morgan RIGHT NOW based on his current goals:\n\n- get quick wins\n- land fast jobs\n- build portfolio\n- collect testimonials\n- increase Upwork profile history\n- avoid time-wasting clients\n- focus on automation, AI, workflow, systems, voice agents, CRM, Twilio/Retell, n8n-related work\n\n### Output Format JSON (required):\n{\n  \"score\": \"X/10\",\n  \"priority\": \"High | Medium | Low\",\n  \"reason\": \"One short paragraph explaining why\"\n}\n\n### Scoring rules:\nHIGH PRIORITY (8–10/10) if:\n- Job is clearly automation-related (n8n, automation, workflow, AI, chatbot, voice agent, Twilio, Retell, Zapier, Make, API integrations)\n- Client looks easy to work with\n- Budget is reasonable\n- Job can be completed quickly (under 48 hours)\n- Client has history OR high payment verification\n\nMEDIUM PRIORITY (5–7/10) if:\n- Some automation work but unclear scope\n- Job might be longer than ideal\n- Client is new with no history\n- Budget is low but still worth doing for profile building\n\nLOW PRIORITY (1–4/10) if:\n- Not automation related\n- Job looks like a headache\n- Client unclear / bad reviews / very low rate\n- WordPress / graphic design / irrelevant work\n- Long-term dev projects unsuitable for quick wins\n\n### Job Data:\nTitle: {{ $json.title }}\nDescription: {{ $json.description }}\nURL: {{ $json.url }}\nPosted: {{ $json.relativeDate }}\nJob Type: {{ $json.jobType }}\nExperience Level: {{ $json.experienceLevel }}\nBudget: {{ $json.budget }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [1024, -208],
+      "id": "746f9433-b05f-4b7b-bf0e-c43bff4ce45a",
+      "name": "Analyse Job"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhance scoring with skill-based matching\nconst items = $input.all();\nconst skillWeights = $('Set Skill Weights').item.json.skillWeights;\nconst enhancedItems = [];\n\nfor (const item of items) {\n  try {\n    const jobData = $('Edit Fields').item.json;\n    const aiOutput = item.json.output || item.json;\n    \n    // Extract AI score (handle \"X/10\" format)\n    let aiScore = 5; // Default\n    if (aiOutput.score) {\n      const scoreMatch = aiOutput.score.toString().match(/(\\d+)/);\n      if (scoreMatch) {\n        aiScore = parseInt(scoreMatch[1]);\n      }\n    }\n    \n    // Calculate skill-based score\n    const jobText = ((jobData.title || '') + ' ' + (jobData.description || '')).toLowerCase();\n    let skillScore = 0;\n    const matchedSkills = [];\n    \n    for (const [skill, weight] of Object.entries(skillWeights)) {\n      if (jobText.includes(skill.toLowerCase())) {\n        skillScore += weight;\n        matchedSkills.push(skill);\n      }\n    }\n    \n    // Normalize skill score to 0-10 scale\n    const maxSkillScore = Object.values(skillWeights).reduce((a, b) => a + b, 0);\n    const normalizedSkillScore = (skillScore / maxSkillScore) * 10;\n    \n    // Combine AI score (70%) with skill score (30%)\n    const finalScore = Math.round((aiScore * 0.7) + (normalizedSkillScore * 0.3));\n    const clampedScore = Math.max(1, Math.min(10, finalScore));\n    \n    // Determine priority based on final score\n    let finalPriority = aiOutput.priority || 'Medium';\n    if (clampedScore >= 8) {\n      finalPriority = 'High';\n    } else if (clampedScore >= 5) {\n      finalPriority = 'Medium';\n    } else {\n      finalPriority = 'Low';\n    }\n    \n    enhancedItems.push({\n      json: {\n        ...jobData,\n        aiScore: aiScore,\n        skillScore: Math.round(normalizedSkillScore * 10) / 10,\n        finalScore: clampedScore,\n        priority: finalPriority,\n        reason: aiOutput.reason || 'No reason provided',\n        matchedSkills: matchedSkills.length > 0 ? matchedSkills : [],\n        processedAt: new Date().toISOString()\n      }\n    });\n  } catch (error) {\n    // Error handling - log and continue\n    console.error('Error enhancing score:', error.message);\n    enhancedItems.push({\n      json: {\n        ...$('Edit Fields').item.json,\n        finalScore: 5,\n        priority: 'Medium',\n        reason: 'Error processing: ' + error.message,\n        matchedSkills: [],\n        processedAt: new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn enhancedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1224, -208],
+      "id": "enhance-scoring",
+      "name": "Enhance Scoring"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "filter-high-priority",
+              "leftValue": "={{ $json.priority }}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1424, -108],
+      "id": "filter-high-priority",
+      "name": "Filter High Priority"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_BASE_ID }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "={{ $env.AIRTABLE_TABLE_ID }}",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $json.title }}",
+            "Description": "={{ $json.description }}",
+            "URL": "={{ $json.url }}",
+            "Score": "={{ $json.finalScore }}",
+            "Priority": "={{ $json.priority }}",
+            "Reason": "={{ $json.reason }}",
+            "Time Job Created": "={{ $json.Posted }}",
+            "Budget": "={{ $json.budget }}",
+            "Experience Level": "={{ $json.experienceLevel }}",
+            "Matched Skills": "={{ $json.matchedSkills.join(', ') }}",
+            "Processed At": "={{ $json.processedAt }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [1424, -308],
+      "id": "f3bee20c-c6c0-41fd-8b20-e9ffca99b66b",
+      "name": "Create Airtable Record",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "airtable-credentials",
+          "name": "Airtable API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=🚨 *High Priority Job Alert*\\n\\n*{{ $json.title }}*\\n\\n*Score:* {{ $json.finalScore }}/10\\n*Priority:* {{ $json.priority }}\\n*Budget:* {{ $json.budget || 'Not specified' }}\\n\\n*Reasoning:*\\n{{ $json.reason }}\\n\\n*Matched Skills:* {{ $json.matchedSkills.join(', ') || 'None' }}\\n\\n*Job URL:* {{ $json.url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1624, -108],
+      "id": "slack-alert",
+      "name": "Send Slack Alert",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "slack-credentials",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handling and logging\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    // Validate required fields\n    if (!item.json.title || item.json.finalScore === undefined) {\n      throw new Error('Missing required fields: title or score');\n    }\n    \n    results.push({\n      json: {\n        ...item.json,\n        status: 'success',\n        loggedAt: new Date().toISOString()\n      }\n    });\n  } catch (error) {\n    // Log errors but continue processing\n    console.error('Processing error:', {\n      error: error.message,\n      data: item.json,\n      timestamp: new Date().toISOString()\n    });\n    \n    results.push({\n      json: {\n        ...item.json,\n        status: 'error',\n        error: error.message,\n        loggedAt: new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1624, -308],
+      "id": "error-handling",
+      "name": "Error Handling & Logging"
+    },
+    {
+      "parameters": {
+        "content": "## Upwork Automation - Enhanced\n\nThis workflow:\n- Fetches Upwork jobs every 8 hours\n- Filters jobs from last 6 hours\n- Pre-filters by budget and experience\n- Scores jobs with AI (GPT-4o)\n- Enhances with skill-based scoring\n- Saves to Airtable\n- Sends Slack alerts for high-priority jobs",
+        "height": 200,
+        "width": 300,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-48, -352],
+      "typeVersion": 1,
+      "id": "413cd317-a51a-4384-a61c-98c11e143177",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Fetch Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Fetch Jobs": {
+      "main": [
+        [
+          {
+            "node": "Pre-filter Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-filter Jobs": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Set Skill Weights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Skill Weights": {
+      "main": [
+        [
+          {
+            "node": "Analyse Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyse Job",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Analyse Job",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse Job": {
+      "main": [
+        [
+          {
+            "node": "Enhance Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhance Scoring": {
+      "main": [
+        [
+          {
+            "node": "Filter High Priority",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Airtable Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High Priority": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create Airtable Record": {
+      "main": [
+        [
+          {
+            "node": "Error Handling & Logging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "338e900f-cd38-46d3-a775-5bef721f05d3",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "31df69be6088ce9eb1ca7df984a5bead183e6cba389637b399650ddc1eb75520"
+  },
+  "id": "nrlmJQ6MGc62wUX2",
+  "tags": []
+}
